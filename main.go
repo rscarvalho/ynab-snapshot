@@ -8,7 +8,13 @@ import (
 	"strings"
 )
 
+var SpecialGroupNames = map[string]bool{
+	"Internal Master Category": true,
+	"Hidden Categories":        true,
+}
+
 func main() {
+	fmt.Printf("Running with args: %+v\n", os.Args)
 	token, ok := os.LookupEnv("YNAB_TOKEN")
 
 	if !ok {
@@ -31,6 +37,9 @@ func main() {
 			_, _ = fmt.Fprintf(os.Stderr, "Error parsing response: %v", err)
 		} else {
 			for _, group := range groups {
+				if group.Hidden || group.Deleted || SpecialGroupNames[group.Name] {
+					continue
+				}
 				printCategoryGroup(&budget, &group)
 			}
 		}
@@ -41,7 +50,8 @@ func printCategoryGroup(budget *ynab.Budget, group *ynab.CategoryGroup) {
 	fmt.Printf("%s:\n", group.Name)
 
 	for _, category := range group.Categories {
-		if category.Budgeted == 0 && category.Balance == 0 {
+
+		if category.Hidden || category.Deleted || category.Budgeted == 0 && category.Balance == 0 {
 			continue
 		}
 		fmt.Printf("\t%s - %s (Budgeted %s)\n", category.Name, formatCurrency(category.Balance, budget.CurrencyFormat), formatCurrency(category.Budgeted, budget.CurrencyFormat))
