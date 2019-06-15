@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bufio"
+	"encoding/csv"
 	"fmt"
 	ynab "github.com/rscarvalho/YNABSnapshot/client"
 	"os"
+	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var SpecialGroupNames = map[string]bool{
@@ -15,6 +19,30 @@ var SpecialGroupNames = map[string]bool{
 
 func main() {
 	fmt.Printf("Running with args: %+v\n", os.Args)
+	year, month, day := time.Now().Date()
+	fileName := fmt.Sprintf("%02d-%02d-%02d_category_snapshot.csv", year, month, day)
+
+	if len(os.Args) > 1 {
+		fileName = path.Join(os.Args[1], fileName)
+	}
+
+	f, err := os.Create(fileName)
+
+	if err != nil {
+		panic(err)
+	}
+
+	w := bufio.NewWriter(f)
+
+	csvWriter := csv.NewWriter(w)
+	defer f.Close()
+
+	if err = csvWriter.Write([]string{
+		"id", "budget_id", "group_id", "name", "budgeted", "balance",
+	}); err != nil {
+		panic(err)
+	}
+
 	token, ok := os.LookupEnv("YNAB_TOKEN")
 
 	if !ok {
@@ -40,13 +68,14 @@ func main() {
 				if group.Hidden || group.Deleted || SpecialGroupNames[group.Name] {
 					continue
 				}
-				printCategoryGroup(&budget, &group)
+				printCategoryGroup(&budget, &group, csvWriter)
 			}
 		}
 	}
+	w.Flush()
 }
 
-func printCategoryGroup(budget *ynab.Budget, group *ynab.CategoryGroup) {
+func printCategoryGroup(budget *ynab.Budget, group *ynab.CategoryGroup, csvWriter *csv.Writer) {
 	fmt.Printf("%s:\n", group.Name)
 
 	for _, category := range group.Categories {
@@ -54,8 +83,24 @@ func printCategoryGroup(budget *ynab.Budget, group *ynab.CategoryGroup) {
 		if category.Hidden || category.Deleted || category.Budgeted == 0 && category.Balance == 0 {
 			continue
 		}
+		err := writeRow(csvWriter, budget, &category)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error writing to csv: %v", err)
+		}
 		fmt.Printf("\t%s - %s (Budgeted %s)\n", category.Name, formatCurrency(category.Balance, budget.CurrencyFormat), formatCurrency(category.Budgeted, budget.CurrencyFormat))
 	}
+}
+
+func writeRow(csvWriter *csv.Writer, budget *ynab.Budget, category *ynab.Category) error {
+	record := []string{
+		category.Id, budget.Id, category.CategoryGroupId, category.Name, strconv.FormatInt(category.Budgeted, 10), strconv.FormatInt(category.Balance, 10),
+	}
+
+	if err := csvWriter.Write(record); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func formatCurrency(number int64, format ynab.CurrencyFormat) string {
