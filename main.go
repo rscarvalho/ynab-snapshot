@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"encoding/csv"
 	"fmt"
-	ynab "github.com/rscarvalho/YNABSnapshot/client"
+	ynab "github.com/rscarvalho/ynab-snapshot/client"
 	"os"
 	"path"
 	"strconv"
