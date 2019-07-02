@@ -71,24 +71,23 @@ func (client *ynabClientImpl) GetCategories(budgetID string, month string) ([]Ca
 		rateLimit := time.Tick(500 * time.Millisecond)
 		<-rateLimit
 
-		loadCategory := func(categoryID string, channel chan *Category) {
-			<-rateLimit
-			category, err := client.GetCategoryForMonth(budgetID, categoryID, month)
-			fmt.Printf("DONE: %s: %v\n", categoryID, err)
-			if err != nil {
-				channel <- nil
-			} else {
-				channel <- category
-			}
-		}
-
 		var categoryRefs []categoryRef
 
 		for _, group := range apiResponse.Data.CategoryGroups {
 			for _, category := range group.Categories {
-				chn := make(chan *Category)
-				go loadCategory(category.ID, chn)
-				categoryRefs = append(categoryRefs, categoryRef{&category, chn})
+				channel := make(chan *Category)
+				categoryID := category.ID
+				go func() {
+					<-rateLimit
+					category, err := client.GetCategoryForMonth(budgetID, categoryID, month)
+					fmt.Printf("DONE: %s: %v\n", categoryID, err)
+					if err != nil {
+						channel <- nil
+					} else {
+						channel <- category
+					}
+				}()
+				categoryRefs = append(categoryRefs, categoryRef{&category, channel})
 			}
 		}
 
