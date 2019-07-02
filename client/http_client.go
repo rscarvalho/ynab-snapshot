@@ -10,9 +10,26 @@ import (
 	"time"
 )
 
+const baseURL = "https://api.youneedabudget.com/v1"
+
+const CURRENT_MONTH = "Current Month"
+
+// YNABClient is an HTTP client for the You Need a Budget REST api
 type YNABClient interface {
 	GetBudgets() ([]Budget, error)
-	GetCategories(budgetId string) ([]CategoryGroup, error)
+	GetCategories(budgetID string, month string) ([]CategoryGroup, error)
+}
+
+// NewClient creates a new YNABClient with apiKey
+func NewClient(apiKey string) YNABClient {
+	client := &ynabClientImpl{
+		apiKey: apiKey,
+		httpClient: &http.Client{
+			Timeout: time.Second * 30,
+		},
+	}
+
+	return client
 }
 
 type ynabClientImpl struct {
@@ -20,7 +37,103 @@ type ynabClientImpl struct {
 	apiKey     string
 }
 
-const baseURL = "https://api.youneedabudget.com/v1"
+func (client *ynabClientImpl) GetBudgets() ([]Budget, error) {
+	apiResponse := struct {
+		Data struct {
+			Budgets []Budget `json:"budgets"`
+		} `json:"data"`
+	}{}
+
+	if err := client.doGet("/budgets", &apiResponse); err != nil {
+		return nil, err
+	}
+
+	return apiResponse.Data.Budgets, nil
+}
+
+type categoryRef = struct {
+	Category *Category
+	Receiver chan *Category
+}
+
+func (client *ynabClientImpl) GetCategories(budgetID string, month string) ([]CategoryGroup, error) {
+	apiResponse := struct {
+		Data struct {
+			CategoryGroups []CategoryGroup `json:"category_groups"`
+		} `json:"data"`
+	}{}
+
+	if err := client.doGet(fmt.Sprintf("/budgets/%s/categories", budgetID), &apiResponse); err != nil {
+		return nil, err
+	}
+
+	if month != CURRENT_MONTH {
+		rateLimit := time.Tick(500 * time.Millisecond)
+		<-rateLimit
+
+		loadCategory := func(categoryID string, channel chan *Category) {
+			<-rateLimit
+			category, err := client.GetCategoryForMonth(budgetID, categoryID, month)
+			fmt.Printf("DONE: %s: %v\n", categoryID, err)
+			if err != nil {
+				channel <- nil
+			} else {
+				channel <- category
+			}
+		}
+
+		var categoryRefs []categoryRef
+
+		for _, group := range apiResponse.Data.CategoryGroups {
+			for _, category := range group.Categories {
+				chn := make(chan *Category)
+				go loadCategory(category.ID, chn)
+				categoryRefs = append(categoryRefs, categoryRef{&category, chn})
+			}
+		}
+
+		for _, ref := range categoryRefs {
+			select {
+			case cat := <-ref.Receiver:
+				if cat == nil {
+					_, _ = fmt.Fprintf(os.Stderr, "Error loading category %s", ref.Category.ID)
+					continue
+				}
+				ref.Category.Activity = cat.Activity
+				ref.Category.Balance = cat.Balance
+				ref.Category.Budgeted = cat.Budgeted
+				ref.Category.CategoryGroupID = cat.CategoryGroupID
+				ref.Category.Deleted = cat.Deleted
+				ref.Category.GoalCreationMonth = cat.GoalCreationMonth
+				ref.Category.GoalPercentageComplete = cat.GoalPercentageComplete
+				ref.Category.GoalTarget = cat.GoalTarget
+				ref.Category.GoalTargetMonth = cat.GoalTargetMonth
+				ref.Category.GoalType = cat.GoalType
+				ref.Category.Hidden = cat.Hidden
+				ref.Category.Name = cat.Name
+				ref.Category.Note = cat.Note
+				ref.Category.OriginalCategoryGroupID = cat.OriginalCategoryGroupID
+			}
+		}
+	}
+
+	return apiResponse.Data.CategoryGroups, nil
+}
+
+func (client *ynabClientImpl) GetCategoryForMonth(budgetID string, categoryID string, month string) (*Category, error) {
+	apiResponse := struct {
+		Data struct {
+			Category *Category `json:"category"`
+		} `json:"data"`
+	}{}
+
+	url := fmt.Sprintf("/budgets/%s/months/%s-01/categories/%s", budgetID, month, categoryID)
+	if err := client.doGet(url, &apiResponse); err != nil {
+		return nil, err
+	}
+
+	return apiResponse.Data.Category, nil
+}
 
 func makeRequest(client *ynabClientImpl, method string, path string, body io.Reader) (*http.Request, error) {
 	url := fmt.Sprintf("%s%s", baseURL, path)
@@ -56,7 +169,7 @@ func (client *ynabClientImpl) doRequest(path string, method string, body io.Read
 			message = string(bytes)
 		}
 
-		return fmt.Errorf("Invalid response status %d %s: Body=%s", response.StatusCode, response.Status, message)
+		return fmt.Errorf("invalid response status %d %s: Body=%s", response.StatusCode, response.Status, message)
 	}
 
 	err = json.NewDecoder(response.Body).Decode(responseStruct)
@@ -75,43 +188,4 @@ func (client *ynabClientImpl) doRequest(path string, method string, body io.Read
 
 func (client *ynabClientImpl) doGet(path string, responseStruct interface{}) error {
 	return client.doRequest(path, "GET", nil, responseStruct)
-}
-
-func (client *ynabClientImpl) GetBudgets() ([]Budget, error) {
-	apiResponse := struct {
-		Data struct {
-			Budgets []Budget `json:"budgets"`
-		} `json:"data"`
-	}{}
-
-	if err := client.doGet("/budgets", &apiResponse); err != nil {
-		return nil, err
-	}
-
-	return apiResponse.Data.Budgets, nil
-}
-
-func (client *ynabClientImpl) GetCategories(budgetId string) ([]CategoryGroup, error) {
-	apiResponse := struct {
-		Data struct {
-			CategoryGroups []CategoryGroup `json:"category_groups"`
-		} `json:"data"`
-	}{}
-
-	if err := client.doGet(fmt.Sprintf("/budgets/%s/categories", budgetId), &apiResponse); err != nil {
-		return nil, err
-	}
-
-	return apiResponse.Data.CategoryGroups, nil
-}
-
-func NewClient(apiKey string) YNABClient {
-	client := &ynabClientImpl{
-		apiKey: apiKey,
-		httpClient: &http.Client{
-			Timeout: time.Second * 30,
-		},
-	}
-
-	return client
 }

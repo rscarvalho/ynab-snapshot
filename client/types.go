@@ -1,5 +1,12 @@
 package client
 
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
+
+// CurrencyFormat has information about how to format a currency on the screen
 type CurrencyFormat struct {
 	IsoCode          string `json:"iso_code"`
 	ExampleFormat    string `json:"example_format"`
@@ -11,8 +18,9 @@ type CurrencyFormat struct {
 	DisplaySymbol    bool   `json:"display_symbol"`
 }
 
+// Budget represents a YNAB budget
 type Budget struct {
-	Id             string `json:"id"`
+	ID             string `json:"id"`
 	Name           string `json:"name"`
 	LastModifiedOn string `json:"last_modified_on"`
 	FirstMonth     string `json:"first_month"`
@@ -23,12 +31,13 @@ type Budget struct {
 	CurrencyFormat CurrencyFormat `json:"currency_format"`
 }
 
+// Category represents a YNAB category
 type Category struct {
-	Id                      string `json:"id"`
-	CategoryGroupId         string `json:"category_group_id"`
+	ID                      string `json:"id"`
+	CategoryGroupID         string `json:"category_group_id"`
 	Name                    string `json:"name"`
 	Hidden                  bool   `json:"hidden"`
-	OriginalCategoryGroupId string `json:"original_category_group_id"`
+	OriginalCategoryGroupID string `json:"original_category_group_id"`
 	Note                    string `json:"note"`
 	Budgeted                int64  `json:"budgeted"`
 	Activity                int64  `json:"activity"`
@@ -41,10 +50,70 @@ type Category struct {
 	Deleted                 bool   `json:"deleted"`
 }
 
+// CategoryGroup represents a group of categories in YNAB
 type CategoryGroup struct {
-	Id         string     `json:"id"`
+	ID         string     `json:"id"`
 	Name       string     `json:"name"`
 	Hidden     bool       `json:"hidden"`
 	Deleted    bool       `json:"deleted"`
 	Categories []Category `json:"categories"`
+}
+
+// Format formats currency microvalue `number` according to the currency `format`
+func (format *CurrencyFormat) Format(number int64) string {
+	var b strings.Builder
+
+	millis := 3
+	if number < 0 {
+		millis = 4
+	}
+
+	if format.DisplaySymbol && format.SymbolFirst {
+		b.WriteString(format.CurrencySymbol)
+	}
+
+	if number > 0 {
+		numberStr := strconv.FormatInt(number, 10)
+		before := numberStr[:len(numberStr)-millis]
+		after := numberStr[len(numberStr)-millis:]
+		after = after[:format.DecimalDigits]
+
+		groups := make([]string, 0)
+		remainder := ""
+		if before[0] == '-' {
+			remainder = "-"
+			before = before[1:]
+		}
+
+		for true {
+			if len(before) <= 3 {
+				groups = append(groups, before)
+				break
+			} else {
+				groups = append(groups, before[len(before)-3:])
+				before = before[:len(before)-3]
+			}
+		}
+
+		b.WriteString(remainder)
+		for i := len(groups) - 1; i >= 0; i-- {
+			b.WriteString(groups[i])
+
+			if i != 0 {
+				b.WriteString(format.GroupSeparator)
+			}
+		}
+
+		b.WriteString(format.DecimalSeparator)
+		b.WriteString(after)
+	} else {
+		b.WriteString(fmt.Sprintf("0%s%s", format.DecimalSeparator, strings.Repeat("0", format.DecimalDigits)))
+	}
+
+	if format.DisplaySymbol && !format.SymbolFirst {
+		b.WriteString(" ")
+		b.WriteString(format.CurrencySymbol)
+	}
+
+	return b.String()
 }
