@@ -30,15 +30,29 @@ func main() {
 	if !ok {
 		token = ""
 	}
-	tokenPtr := flag.String("Token", token, "The ynab API token. Default: $YNAB_TOKEN")
-	datePtr := flag.String("Date", snapshotMonth, "The month to take the snapshot in format YYYY-MM. Default: today's month")
-	targetPath := flag.String("Path", "", "The target path for the snapshot. Default: The current path")
+
+	var pwd string
+	cwd, err := os.Getwd();
+
+	if err == nil {
+		pwd = cwd
+	} else {
+		cwd = ""
+		pwd = ""
+	}
+
+	tokenPtr := flag.String("Token", "", "The ynab API token. Can be set by the environment variable $YNAB_TOKEN")
+	datePtr := flag.String("Date", snapshotMonth, "The month to take the snapshot in format YYYY-MM.")
+	targetPath := flag.String("Path", pwd, "The target path for the snapshot.")
 
 	flag.Parse()
 	if len(*tokenPtr) == 0 {
+		token = *tokenPtr
+	}
+
+	if len(token) == 0 {
 		panic(fmt.Errorf("could not find api token in $YNAB_TOKEN "))
 	}
-	token = *tokenPtr
 
 	snapshotMonth = *datePtr
 
