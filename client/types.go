@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -57,6 +58,15 @@ type CategoryGroup struct {
 	Hidden     bool       `json:"hidden"`
 	Deleted    bool       `json:"deleted"`
 	Categories []Category `json:"categories"`
+}
+
+func copyCategories(dst, src *Category) {
+	valueDst := reflect.ValueOf(dst)
+	valueSrc := reflect.ValueOf(src)
+
+	for i :=0; i < valueDst.Elem().NumField(); i++ {
+		valueDst.Elem().Field(i).Set(valueSrc.Elem().Field(i))
+	}
 }
 
 // Format formats currency microvalue `number` according to the currency `format`

@@ -7,12 +7,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"reflect"
 	"time"
 )
 
 const baseURL = "https://api.youneedabudget.com/v1"
 
-const CURRENT_MONTH = "Current Month"
+const CurrentMonth = "current"
 
 // YNABClient is an HTTP client for the You Need a Budget REST api
 type YNABClient interface {
@@ -37,6 +38,17 @@ type ynabClientImpl struct {
 	apiKey     string
 }
 
+type categoryChanResult struct {
+	Category *Category
+	Error error
+}
+
+type categoryRef struct {
+	Category *Category
+	Receiver chan *categoryChanResult
+}
+
+
 func (client *ynabClientImpl) GetBudgets() ([]Budget, error) {
 	apiResponse := struct {
 		Data struct {
@@ -51,11 +63,6 @@ func (client *ynabClientImpl) GetBudgets() ([]Budget, error) {
 	return apiResponse.Data.Budgets, nil
 }
 
-type categoryRef = struct {
-	Category *Category
-	Receiver chan *Category
-}
-
 func (client *ynabClientImpl) GetCategories(budgetID string, month string) ([]CategoryGroup, error) {
 	apiResponse := struct {
 		Data struct {
@@ -67,51 +74,56 @@ func (client *ynabClientImpl) GetCategories(budgetID string, month string) ([]Ca
 		return nil, err
 	}
 
-	if month != CURRENT_MONTH {
-		rateLimit := time.Tick(500 * time.Millisecond)
-		<-rateLimit
+	if month == CurrentMonth {
+		return apiResponse.Data.CategoryGroups, nil
+	} else {
+		rateLimit := time.Tick(50 * time.Millisecond)
 
 		var categoryRefs []categoryRef
 
-		for _, group := range apiResponse.Data.CategoryGroups {
-			for _, category := range group.Categories {
-				channel := make(chan *Category)
+		for i := range apiResponse.Data.CategoryGroups {
+			group := &apiResponse.Data.CategoryGroups[i]
+			for i := range group.Categories {
+				category := &group.Categories[i]
+				channel := make(chan *categoryChanResult)
 				categoryID := category.ID
 				go func() {
 					<-rateLimit
 					category, err := client.GetCategoryForMonth(budgetID, categoryID, month)
 					fmt.Printf("DONE: %s: %v\n", categoryID, err)
-					if err != nil {
-						channel <- nil
-					} else {
-						channel <- category
-					}
+					channel <- &categoryChanResult{category, err}
+
+					close(channel)
 				}()
-				categoryRefs = append(categoryRefs, categoryRef{&category, channel})
+				categoryRefs = append(categoryRefs, categoryRef{category, channel})
 			}
 		}
 
-		for _, ref := range categoryRefs {
-			select {
-			case cat := <-ref.Receiver:
-				if cat == nil {
-					_, _ = fmt.Fprintf(os.Stderr, "Error loading category %s", ref.Category.ID)
-					continue
+		for len(categoryRefs) > 0 {
+			received := false
+			for i := range categoryRefs {
+				ref := &categoryRefs[i]
+				time.Sleep(50 * time.Millisecond)
+
+				select {
+				case cat := <-ref.Receiver:
+					if cat.Error != nil {
+						_, _ = fmt.Fprintf(os.Stderr, "error loading category %s: %v\n", ref.Category.ID, cat.Error)
+						continue
+					}
+
+					if !reflect.DeepEqual(ref.Category, cat) {
+						copyCategories(ref.Category, cat.Category)
+					}
+
+					received = true
+					categoryRefs = append(categoryRefs[:i], categoryRefs[i+1:]...)
+				default:
 				}
-				ref.Category.Activity = cat.Activity
-				ref.Category.Balance = cat.Balance
-				ref.Category.Budgeted = cat.Budgeted
-				ref.Category.CategoryGroupID = cat.CategoryGroupID
-				ref.Category.Deleted = cat.Deleted
-				ref.Category.GoalCreationMonth = cat.GoalCreationMonth
-				ref.Category.GoalPercentageComplete = cat.GoalPercentageComplete
-				ref.Category.GoalTarget = cat.GoalTarget
-				ref.Category.GoalTargetMonth = cat.GoalTargetMonth
-				ref.Category.GoalType = cat.GoalType
-				ref.Category.Hidden = cat.Hidden
-				ref.Category.Name = cat.Name
-				ref.Category.Note = cat.Note
-				ref.Category.OriginalCategoryGroupID = cat.OriginalCategoryGroupID
+
+				if received {
+					break
+				}
 			}
 		}
 	}

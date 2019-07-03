@@ -24,7 +24,7 @@ func main() {
 	_ = godotenv.Load()
 
 	year, month, day := time.Now().Date()
-	snapshotMonth := ynab.CURRENT_MONTH
+	snapshotMonth := ynab.CurrentMonth
 
 	token, ok := os.LookupEnv("YNAB_TOKEN")
 	if !ok {
@@ -43,7 +43,7 @@ func main() {
 	snapshotMonth = *datePtr
 
 	var fileName string
-	if snapshotMonth == ynab.CURRENT_MONTH {
+	if snapshotMonth == ynab.CurrentMonth {
 		fileName = fmt.Sprintf("%02d-%02d-%02d_CURRENT_category_snapshot.csv", year, month, day)
 	} else {
 		fileName = fmt.Sprintf("%02d-%02d-%02d_%s_category_snapshot.csv", year, month, day, snapshotMonth)
