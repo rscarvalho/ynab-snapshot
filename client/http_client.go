@@ -40,14 +40,13 @@ type ynabClientImpl struct {
 
 type categoryChanResult struct {
 	Category *Category
-	Error error
+	Error    error
 }
 
 type categoryRef struct {
 	Category *Category
 	Receiver chan *categoryChanResult
 }
-
 
 func (client *ynabClientImpl) GetBudgets() ([]Budget, error) {
 	apiResponse := struct {
@@ -90,7 +89,6 @@ func (client *ynabClientImpl) GetCategories(budgetID string, month string) ([]Ca
 				go func() {
 					<-rateLimit
 					category, err := client.GetCategoryForMonth(budgetID, categoryID, month)
-					fmt.Printf("DONE: %s: %v\n", categoryID, err)
 					channel <- &categoryChanResult{category, err}
 
 					close(channel)

@@ -8,3 +8,6 @@ test:
 
 lint:
 	@golint -set_exit_status
+
+install:
+	@go install github.com/rscarvalho/ynab-snapshot

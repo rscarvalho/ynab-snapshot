@@ -32,7 +32,7 @@ func main() {
 	}
 
 	var pwd string
-	cwd, err := os.Getwd();
+	cwd, err := os.Getwd()
 
 	if err == nil {
 		pwd = cwd
@@ -46,7 +46,7 @@ func main() {
 	targetPath := flag.String("Path", pwd, "The target path for the snapshot.")
 
 	flag.Parse()
-	if len(*tokenPtr) == 0 {
+	if len(*tokenPtr) > 0 {
 		token = *tokenPtr
 	}
 
