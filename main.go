@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
 	ynab "github.com/rscarvalho/ynab-snapshot/client"
 )
 
@@ -21,8 +20,6 @@ var specialGroupNames = map[string]bool{
 }
 
 func main() {
-	_ = godotenv.Load()
-
 	year, month, day := time.Now().Date()
 	snapshotMonth := ynab.CurrentMonth
 
