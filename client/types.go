@@ -64,7 +64,7 @@ func copyCategories(dst, src *Category) {
 	valueDst := reflect.ValueOf(dst)
 	valueSrc := reflect.ValueOf(src)
 
-	for i :=0; i < valueDst.Elem().NumField(); i++ {
+	for i := 0; i < valueDst.Elem().NumField(); i++ {
 		valueDst.Elem().Field(i).Set(valueSrc.Elem().Field(i))
 	}
 }
@@ -90,7 +90,10 @@ func (format *CurrencyFormat) Format(number int64) string {
 
 		groups := make([]string, 0)
 		remainder := ""
-		if before[0] == '-' {
+
+		if len(before) == 0 {
+			before = "0"
+		} else if before[0] == '-' {
 			remainder = "-"
 			before = before[1:]
 		}
