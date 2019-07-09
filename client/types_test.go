@@ -31,9 +31,11 @@ func TestCurrencyFormat_Format_USD(t *testing.T) {
 	}
 
 	for _, example := range pairs {
-		formatted := currencyFormatUsd.Format(example.millis)
-		if formatted != example.value {
-			t.Error(fmt.Sprintf("Expected: %v but got: %v", example.value, formatted))
-		}
+		t.Run(fmt.Sprintf("N=%d", example.millis), func(t1 *testing.T) {
+			formatted := currencyFormatUsd.Format(example.millis)
+			if formatted != example.value {
+				t1.Error(fmt.Sprintf("Expected: %v but got: %v", example.value, formatted))
+			}
+		})
 	}
 }
