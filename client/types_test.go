@@ -23,6 +23,7 @@ var currencyFormatUsd = &CurrencyFormat{
 
 func TestCurrencyFormat_Format_USD(t *testing.T) {
 	pairs := []formatExpect{
+		{0, "$0.00"},
 		{100, "$0.10"},
 		{85200, "$85.20"},
 		{10250210, "$10,250.21"},

@@ -83,10 +83,17 @@ func (format *CurrencyFormat) Format(number int64) string {
 		return fmt.Sprintf("-%s", result)
 	}
 
-	numberStr := strconv.FormatInt(number, 10)
-	before := numberStr[:len(numberStr)-millis]
-	after := numberStr[len(numberStr)-millis:]
-	after = after[:format.DecimalDigits]
+	var before, after string
+
+	if number == 0 {
+		before = "0"
+		after = strings.Repeat("0", format.DecimalDigits)
+	} else {
+		numberStr := strconv.FormatInt(number, 10)
+		before = numberStr[:len(numberStr)-millis]
+		after = numberStr[len(numberStr)-millis:]
+		after = after[:format.DecimalDigits]
+	}
 
 	groups := make([]string, 0)
 	remainder := ""
