@@ -64,7 +64,7 @@ func copyCategories(dst, src *Category) {
 	valueDst := reflect.ValueOf(dst)
 	valueSrc := reflect.ValueOf(src)
 
-	for i :=0; i < valueDst.Elem().NumField(); i++ {
+	for i := 0; i < valueDst.Elem().NumField(); i++ {
 		valueDst.Elem().Field(i).Set(valueSrc.Elem().Field(i))
 	}
 }
@@ -78,52 +78,64 @@ func (format *CurrencyFormat) Format(number int64) string {
 		millis = 4
 	}
 
-	if format.DisplaySymbol && format.SymbolFirst {
-		b.WriteString(format.CurrencySymbol)
+	if number < 0 {
+		result := format.Format(-number)
+		return fmt.Sprintf("-%s", result)
 	}
 
-	if number > 0 {
-		numberStr := strconv.FormatInt(number, 10)
-		before := numberStr[:len(numberStr)-millis]
-		after := numberStr[len(numberStr)-millis:]
-		after = after[:format.DecimalDigits]
+	var before, after string
 
-		groups := make([]string, 0)
-		remainder := ""
-		if before[0] == '-' {
-			remainder = "-"
-			before = before[1:]
-		}
-
-		for true {
-			if len(before) <= 3 {
-				groups = append(groups, before)
-				break
-			} else {
-				groups = append(groups, before[len(before)-3:])
-				before = before[:len(before)-3]
-			}
-		}
-
-		b.WriteString(remainder)
-		for i := len(groups) - 1; i >= 0; i-- {
-			b.WriteString(groups[i])
-
-			if i != 0 {
-				b.WriteString(format.GroupSeparator)
-			}
-		}
-
-		b.WriteString(format.DecimalSeparator)
-		b.WriteString(after)
+	if number == 0 {
+		before = "0"
+		after = strings.Repeat("0", format.DecimalDigits)
 	} else {
-		b.WriteString(fmt.Sprintf("0%s%s", format.DecimalSeparator, strings.Repeat("0", format.DecimalDigits)))
+		numberStr := strconv.FormatInt(number, 10)
+		before = numberStr[:len(numberStr)-millis]
+		after = numberStr[len(numberStr)-millis:]
+		after = after[:format.DecimalDigits]
 	}
+
+	groups := make([]string, 0)
+	remainder := ""
+
+	if len(before) == 0 {
+		before = "0"
+	} else if before[0] == '-' {
+		remainder = "-"
+		before = before[1:]
+	}
+
+	for true {
+		if len(before) <= 3 {
+			groups = append(groups, before)
+			break
+		} else {
+			groups = append(groups, before[len(before)-3:])
+			before = before[:len(before)-3]
+		}
+	}
+
+	b.WriteString(remainder)
+	for i := len(groups) - 1; i >= 0; i-- {
+		b.WriteString(groups[i])
+
+		if i != 0 {
+			b.WriteString(format.GroupSeparator)
+		}
+	}
+
+	b.WriteString(format.DecimalSeparator)
+	b.WriteString(after)
+
+	var result string
 
 	if format.DisplaySymbol && !format.SymbolFirst {
 		b.WriteString(" ")
 		b.WriteString(format.CurrencySymbol)
+		result = b.String()
+	} else if format.DisplaySymbol {
+		result = fmt.Sprintf("%s%s", format.CurrencySymbol, b.String())
 	}
 
-	return b.String()
+	return result
 }

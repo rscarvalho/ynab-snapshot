@@ -1,7 +1,7 @@
 PROGRAM=ynab-snapshot
 
 test:
-	go test -v ./
+	go test -v ./ ./client
 
 help:
 	@echo Usage: $(PROGRAM) [-Date] [-Path] [-Token]
